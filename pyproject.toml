@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gem-transcribe"
+version = "0.1.0"
+description = "Audio transcription CLI built on Vertex AI Gemini — speaker inference, multi-language, structured JSON"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "google-genai>=1.0,<2.0",
+    "google-cloud-storage>=2.18,<3.0",
+    "click>=8.1,<9.0",
+    "pydantic>=2.0,<3.0",
+    "pydantic-settings>=2.0,<3.0",
+    "python-dotenv>=1.0,<2.0",
+    "rich>=13.0,<14.0",
+    "nlk @ git+https://github.com/nlink-jp/nlk-py.git",
+]
+
+[project.scripts]
+gem-transcribe = "gem_transcribe.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.14",
+    "pytest-cov>=5.0",
+    "pyright>=1.1",
+    "ruff>=0.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gem_transcribe"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
