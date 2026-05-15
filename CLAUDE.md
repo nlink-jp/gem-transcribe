@@ -23,7 +23,7 @@ src/gem_transcribe/
     client.py          - Gemini wrapper (Part.from_uri, retry, jsonfix)
     prompts.py         - Prompt builder (speaker hints + language modes)
   output/
-    formatters.py      - JSON / plain text formatters
+    formatters.py      - JSON / plain text / Markdown / SRT / VTT formatters
 ```
 
 ## Security Rules

@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auto-upload local audio to GCS staging bucket; deleted after processing (override with `--keep-staging`)
 - Direct `gs://` URI input (skips upload and cleanup)
 - JSON (default, stdout) and plain text output formats
+- Markdown timeline format (`--format=md`) — one bold-prefixed line per segment
+  with `**[hh:mm:ss] Speaker**: text`
+- SubRip subtitle format (`--format=srt`) with bracketed speaker prefix and
+  cue-safe text sanitization (`-->` rewrites to `→`)
+- WebVTT subtitle format (`--format=vtt`) using the `<v Speaker>` voice tag
+  with HTML-entity escaping for `<`, `>`, `&`
+- `--format=srt|vtt` with `--output-file` and multiple `--lang` values writes
+  one file per language as `<basename>.<lang>.<ext>` (matches subtitle-tool
+  conventions for per-language uploads)
 - `--output-dir` mode produces both `.json` and `.txt` for the same basename
 - Configuration via `~/.config/gem-transcribe/config.toml`, `GEM_TRANSCRIBE_*` env vars, or CLI flags
 - Application Default Credentials (ADC) for Vertex AI and GCS

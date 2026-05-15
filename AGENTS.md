@@ -5,9 +5,9 @@ Audio transcription CLI built on Vertex AI Gemini — speaker inference, multi-l
 - **Language**: Python 3.11+ / uv
 - **LLM**: Vertex AI Gemini (google-genai SDK, ADC auth)
 - **Series**: util-series
-- **CLI**: `gem-transcribe <audio-file | gs://bucket/path> [--lang=en,ja] [--speaker-hint="A,B"] [--format json|text] [--output-dir DIR]`
+- **CLI**: `gem-transcribe <audio-file | gs://bucket/path> [--lang=en,ja] [--speaker-hint="A,B"] [--format json|text|md|srt|vtt] [--output-file FILE | --output-dir DIR]`
 - **Input**: Local audio files (mp3/wav/m4a/flac/ogg/webm) or pre-uploaded `gs://` URIs
-- **Output**: Structured JSON (default → stdout) or plain text. `--output-dir` emits both `.json` and `.txt`
+- **Output**: JSON (default → stdout), plain text, Markdown timeline, SubRip (SRT), or WebVTT. `--output-dir` emits both `.json` and `.txt`. SRT/VTT with multi-language `--output-file` derives `<basename>.<lang>.<ext>` per language
 - **Build**: `uv build --out-dir dist/` via `make build`
 - **Test**: `uv run pytest tests/ -v` via `make test`
 - **Module path**: `src/gem_transcribe/`

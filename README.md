@@ -20,8 +20,11 @@ action-item extraction live downstream in tools like
 - **Long audio support** — local files are auto-uploaded to a GCS staging
   bucket and removed after processing; pre-uploaded `gs://` URIs are also
   accepted directly
-- **Multiple output formats** — JSON to stdout by default, plain text via
-  `--format text`, or both at once via `--output-dir`
+- **Multiple output formats** — JSON to stdout by default, plus
+  `--format text|md|srt|vtt`. With multi-language SRT/VTT and
+  `--output-file=meeting.srt --lang=en,ja`, the tool writes
+  `meeting.en.srt` and `meeting.ja.srt` automatically. `--output-dir` emits
+  both `.json` and `.txt` for the same basename
 
 ## Installation
 
@@ -79,6 +82,18 @@ gem-transcribe meeting.mp3 --speaker-hint="Yamada,Sato,Tanaka"
 
 # Both JSON and plain text into a directory
 gem-transcribe meeting.mp3 --output-dir=./transcripts/
+
+# Markdown timeline
+gem-transcribe meeting.mp3 --format=md --output-file=meeting.md
+
+# SRT subtitles
+gem-transcribe meeting.mp3 --format=srt --output-file=meeting.srt
+
+# Multi-language SRT — writes meeting.en.srt and meeting.ja.srt
+gem-transcribe meeting.mp3 --lang=en,ja --format=srt --output-file=meeting.srt
+
+# WebVTT subtitles (with <v Speaker> voice tag)
+gem-transcribe meeting.mp3 --format=vtt --output-file=meeting.vtt
 
 # Pre-uploaded audio in GCS
 gem-transcribe gs://your-bucket/recordings/2026-05-15.mp3
