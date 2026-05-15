@@ -1,0 +1,112 @@
+# gem-transcribe
+
+Audio transcription CLI built on Vertex AI Gemini — speaker inference,
+multi-language output, and structured JSON.
+
+`gem-transcribe` is a focused "transcription foundation": one audio file in,
+a structured transcript out. Minutes generation, summarization, and
+action-item extraction live downstream in tools like
+[meeting-note](https://github.com/nlink-jp/meeting-note).
+
+## Features
+
+- **Speaker inference** — by default, names are inferred from the audio
+  itself (self-introductions, direct address, third-party mentions). Speakers
+  whose names cannot be determined are labelled `Speaker A`, `Speaker B`, etc.
+  Provide `--speaker-hint="Yamada,Sato"` to give Gemini a closed list of
+  candidate names
+- **Multi-language output** — `--lang=en,ja` produces both the original and a
+  translation in a single API call
+- **Long audio support** — local files are auto-uploaded to a GCS staging
+  bucket and removed after processing; pre-uploaded `gs://` URIs are also
+  accepted directly
+- **Multiple output formats** — JSON to stdout by default, plain text via
+  `--format text`, or both at once via `--output-dir`
+
+## Installation
+
+```bash
+uv tool install git+https://github.com/nlink-jp/gem-transcribe.git
+# or, from a clone
+uv sync --all-extras
+```
+
+Requires Python 3.11+.
+
+## Setup
+
+1. **Create a GCS bucket** for staging uploads:
+
+   ```bash
+   gsutil mb -l us-central1 gs://your-bucket
+   ```
+
+2. **Configure ADC** (Application Default Credentials):
+
+   ```bash
+   gcloud auth application-default login
+   ```
+
+3. **Create the config file** at `~/.config/gem-transcribe/config.toml`
+   (see `config.example.toml` for the full template):
+
+   ```toml
+   [gcp]
+   project = "your-gcp-project"
+   location = "us-central1"
+
+   [model]
+   name = "gemini-2.5-flash"
+
+   [storage]
+   staging_bucket = "gs://your-bucket/gem-transcribe/"
+   ```
+
+   The IAM principal must hold `roles/aiplatform.user` and
+   `roles/storage.objectAdmin` on the staging bucket.
+
+## Usage
+
+```bash
+# JSON to stdout (default)
+gem-transcribe meeting.mp3
+
+# Multi-language output
+gem-transcribe interview.m4a --lang=en,ja
+
+# Speaker name attribution
+gem-transcribe meeting.mp3 --speaker-hint="Yamada,Sato,Tanaka"
+
+# Both JSON and plain text into a directory
+gem-transcribe meeting.mp3 --output-dir=./transcripts/
+
+# Pre-uploaded audio in GCS
+gem-transcribe gs://your-bucket/recordings/2026-05-15.mp3
+```
+
+## Configuration
+
+Priority (high → low):
+
+1. CLI flags
+2. Environment variables (`GEM_TRANSCRIBE_*`)
+3. `.env` file
+4. `~/.config/gem-transcribe/config.toml`
+5. Built-in defaults
+
+## Build and test
+
+```bash
+make test     # uv run pytest tests/ -v
+make lint     # ruff check + format check
+make build    # uv build --out-dir dist/
+```
+
+## Documentation
+
+- [docs/en/gem-transcribe-rfp.md](docs/en/gem-transcribe-rfp.md) — design RFP
+- [docs/ja/gem-transcribe-rfp.ja.md](docs/ja/gem-transcribe-rfp.ja.md) — 設計 RFP
+
+## License
+
+MIT
