@@ -129,12 +129,7 @@ def _normalise_timestamps(raw_segments: list) -> list:
             continue
         start = seg.get("start")
         end = seg.get("end")
-        if (
-            isinstance(start, (int, float))
-            and isinstance(end, (int, float))
-            and end < start
-            and end >= 0
-        ):
+        if isinstance(start, (int, float)) and isinstance(end, (int, float)) and end < start and end >= 0:
             new = dict(seg)
             new["end"] = float(start) + float(end)
             repaired.append(new)

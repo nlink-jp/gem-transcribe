@@ -57,7 +57,7 @@ def _speaker_block(hints: Sequence[str] | None, hint_tag: Tag | None) -> str:
             "audio context — look for:\n"
             '- self-introductions (e.g. "I\'m Tanaka", "This is Yamada speaking")\n'
             '- direct address (e.g. "Sato-san, what do you think?", "Thanks, Maria")\n'
-            '- third-party mentions where the addressee is clearly the next speaker '
+            "- third-party mentions where the addressee is clearly the next speaker "
             '("our CEO Akiyoshi will explain", followed by Akiyoshi speaking)\n'
             "When you can confidently attribute a name, use that name as the speaker label. "
             'For speakers whose names cannot be determined from the audio, use "Speaker A", '

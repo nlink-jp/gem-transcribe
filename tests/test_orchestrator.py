@@ -195,9 +195,7 @@ class TestBuildResult:
                 {"start": 4.2, "end": 1.0, "speaker": "B", "text": {"en": "Yo"}},
             ]
         }
-        result = _build_result(
-            bad, source="x", model="m", languages=["en"], speaker_hints=[]
-        )
+        result = _build_result(bad, source="x", model="m", languages=["en"], speaker_hints=[])
         # Second segment's end should be repaired: 4.2 + 1.0 = 5.2
         assert result.segments[1].end == pytest.approx(5.2)
 
