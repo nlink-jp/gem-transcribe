@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 
-from gem_transcribe.cli import _parse_csv, _resolve_basename, main
+from gem_transcribe.cli import _parse_csv, _per_language_paths, _resolve_basename, main
 from gem_transcribe.models import TranscriptionResult
 
 
@@ -163,3 +163,134 @@ class TestMain:
         )
         assert result.exit_code != 0
         assert "Missing required configuration" in result.output
+
+    def test_md_format(
+        self,
+        sample_transcription: TranscriptionResult,
+        cli_env: None,
+        tmp_path: Path,
+    ) -> None:
+        audio = tmp_path / "x.mp3"
+        audio.write_bytes(b"x")
+        code, out = self._run(sample_transcription, [str(audio), "--format", "md"])
+        assert code == 0
+        assert "**[00:00:00] Yamada**:" in out
+
+    def test_srt_format_to_stdout(
+        self,
+        sample_transcription: TranscriptionResult,
+        cli_env: None,
+        tmp_path: Path,
+    ) -> None:
+        audio = tmp_path / "x.mp3"
+        audio.write_bytes(b"x")
+        code, out = self._run(sample_transcription, [str(audio), "--format", "srt"])
+        assert code == 0
+        assert out.startswith("1\n00:00:00,000 --> 00:00:04,200\n[Yamada]")
+
+    def test_vtt_format_to_stdout(
+        self,
+        sample_transcription: TranscriptionResult,
+        cli_env: None,
+        tmp_path: Path,
+    ) -> None:
+        audio = tmp_path / "x.mp3"
+        audio.write_bytes(b"x")
+        code, out = self._run(sample_transcription, [str(audio), "--format", "vtt"])
+        assert code == 0
+        assert out.startswith("WEBVTT")
+        assert "<v Yamada>" in out
+
+    def test_srt_output_file_single_language_writes_one_file(
+        self,
+        cli_env: None,
+        tmp_path: Path,
+    ) -> None:
+        # Use a fixture variant whose result.metadata.languages has exactly one
+        # entry so the per-language splitting path is NOT triggered.
+        from gem_transcribe.models import Metadata, Segment, TranscriptionResult
+
+        single_lang = TranscriptionResult(
+            metadata=Metadata(source="x", model="m", languages=["en"]),
+            segments=[
+                Segment(start=0.0, end=4.2, speaker="Yamada", text={"en": "Hello."}),
+            ],
+        )
+        audio = tmp_path / "x.mp3"
+        audio.write_bytes(b"x")
+        out_path = tmp_path / "out.srt"
+        code, _ = self._run(
+            single_lang,
+            [str(audio), "--format", "srt", "--lang", "en", "--output-file", str(out_path)],
+        )
+        assert code == 0
+        # Single-language run writes exactly the requested path
+        assert out_path.exists()
+        assert "[Yamada]" in out_path.read_text()
+        # No per-language siblings created
+        assert not (tmp_path / "out.en.srt").exists()
+
+    def test_srt_output_file_multi_language_derives_per_language_paths(
+        self,
+        sample_transcription: TranscriptionResult,
+        cli_env: None,
+        tmp_path: Path,
+    ) -> None:
+        # The shared sample_transcription fixture has metadata.languages = ["en", "ja"]
+        audio = tmp_path / "meeting.mp3"
+        audio.write_bytes(b"x")
+        out_path = tmp_path / "meeting.srt"
+        code, _ = self._run(
+            sample_transcription,
+            [str(audio), "--format", "srt", "--output-file", str(out_path)],
+        )
+        assert code == 0
+        en_path = tmp_path / "meeting.en.srt"
+        ja_path = tmp_path / "meeting.ja.srt"
+        assert en_path.exists()
+        assert ja_path.exists()
+        # The bare path is NOT created — only the per-language siblings
+        assert not out_path.exists()
+        assert "Let's start the meeting." in en_path.read_text()
+        assert "会議を始めましょう。" in ja_path.read_text()
+
+    def test_vtt_output_file_multi_language_derives_per_language_paths(
+        self,
+        sample_transcription: TranscriptionResult,
+        cli_env: None,
+        tmp_path: Path,
+    ) -> None:
+        audio = tmp_path / "meeting.mp3"
+        audio.write_bytes(b"x")
+        out_path = tmp_path / "meeting.vtt"
+        code, _ = self._run(
+            sample_transcription,
+            [str(audio), "--format", "vtt", "--output-file", str(out_path)],
+        )
+        assert code == 0
+        assert (tmp_path / "meeting.en.vtt").exists()
+        assert (tmp_path / "meeting.ja.vtt").exists()
+
+
+class TestPerLanguagePaths:
+    def test_basic_derivation(self) -> None:
+        out = _per_language_paths(Path("/tmp/meeting.srt"), ["en", "ja"], "srt")
+        assert out == [
+            ("en", Path("/tmp/meeting.en.srt")),
+            ("ja", Path("/tmp/meeting.ja.srt")),
+        ]
+
+    def test_normalises_extension(self) -> None:
+        # User passes --output-file=meeting (no extension)
+        out = _per_language_paths(Path("/tmp/meeting"), ["en"], "srt")
+        assert out == [("en", Path("/tmp/meeting.en.srt"))]
+
+    def test_replaces_wrong_extension(self) -> None:
+        # User passes --output-file=meeting.txt for SRT format
+        out = _per_language_paths(Path("/tmp/meeting.txt"), ["en"], "srt")
+        assert out == [("en", Path("/tmp/meeting.en.srt"))]
+
+    def test_dedupes_languages(self) -> None:
+        out = _per_language_paths(Path("/tmp/m.srt"), ["en", "ja", "en"], "srt")
+        # Order preserved, duplicates removed
+        assert [lang for lang, _ in out] == ["en", "ja"]

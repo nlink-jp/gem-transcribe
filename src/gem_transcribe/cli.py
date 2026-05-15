@@ -13,7 +13,18 @@ from gem_transcribe.config import get_config
 from gem_transcribe.gcs.uploader import is_gcs_uri
 from gem_transcribe.models import TranscriptionResult
 from gem_transcribe.orchestrator import transcribe
-from gem_transcribe.output.formatters import to_json, to_text
+from gem_transcribe.output.formatters import to_json, to_markdown, to_srt, to_text, to_vtt
+
+# Format → (renderer, file extension) mapping. Keep aligned with the
+# --format Click choice list below.
+_FORMATTERS = {
+    "json": (to_json, "json"),
+    "text": (to_text, "txt"),
+    "md": (to_markdown, "md"),
+    "srt": (to_srt, "srt"),
+    "vtt": (to_vtt, "vtt"),
+}
+_PER_LANGUAGE_FORMATS = frozenset({"srt", "vtt"})
 
 
 def _parse_csv(value: str | None) -> list[str] | None:
@@ -29,6 +40,21 @@ def _resolve_basename(input_arg: str) -> str:
     return Path(input_arg).stem or "transcript"
 
 
+def _per_language_paths(output_file: Path, languages: list[str], extension: str) -> list[tuple[str, Path]]:
+    """Derive ``<basename>.<lang>.<ext>`` paths for each language.
+
+    The supplied ``output_file`` may or may not already carry the format
+    extension; it is normalised to ``.<ext>`` before the language code is
+    spliced in. Languages are deduplicated while preserving order.
+    """
+    seen: set[str] = set()
+    unique = [lang for lang in languages if not (lang in seen or seen.add(lang))]
+    canonical = output_file.with_suffix(f".{extension}")
+    stem = canonical.stem
+    parent = canonical.parent
+    return [(lang, parent / f"{stem}.{lang}.{extension}") for lang in unique]
+
+
 def _write_outputs(
     result: TranscriptionResult,
     *,
@@ -36,6 +62,7 @@ def _write_outputs(
     output_file: str | None,
     output_dir: str | None,
     input_arg: str,
+    languages: list[str],
 ) -> None:
     if output_dir:
         out_dir = Path(output_dir)
@@ -49,7 +76,18 @@ def _write_outputs(
         click.echo(f"Wrote {text_path}", err=True)
         return
 
-    rendered = to_json(result) if fmt == "json" else to_text(result)
+    renderer, extension = _FORMATTERS[fmt]
+
+    # Multi-language SRT/VTT with --output-file: derive per-language paths so
+    # each subtitle file holds exactly one language (matches subtitle-tool
+    # conventions and YouTube uploads).
+    if output_file and fmt in _PER_LANGUAGE_FORMATS and len(languages) > 1:
+        for lang, path in _per_language_paths(Path(output_file), languages, extension):
+            path.write_text(renderer(result, language=lang), encoding="utf-8")
+            click.echo(f"Wrote {path}", err=True)
+        return
+
+    rendered = renderer(result)
     if output_file:
         Path(output_file).write_text(rendered, encoding="utf-8")
         click.echo(f"Wrote {output_file}", err=True)
@@ -69,10 +107,14 @@ def _write_outputs(
 @click.option(
     "--format",
     "fmt",
-    type=click.Choice(["json", "text"], case_sensitive=False),
+    type=click.Choice(["json", "text", "md", "srt", "vtt"], case_sensitive=False),
     default="json",
     show_default=True,
-    help="Output format (ignored when --output-dir is set)",
+    help=(
+        "Output format (ignored when --output-dir is set). srt/vtt with "
+        "--output-file and multiple --lang values produces one file per "
+        "language as <basename>.<lang>.<ext>."
+    ),
 )
 @click.option("--output-file", default=None, type=click.Path(dir_okay=False), help="Write output to a single file")
 @click.option(
@@ -163,6 +205,7 @@ def main(
         output_file=output_file,
         output_dir=output_dir,
         input_arg=input_arg,
+        languages=result.metadata.languages,
     )
 
 
