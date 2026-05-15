@@ -140,6 +140,13 @@ def _write_outputs(
     help="Path to config.toml (default: ~/.config/gem-transcribe/config.toml)",
 )
 @click.option("-v", "--verbose", is_flag=True, default=False, help="Enable INFO-level logging on stderr")
+@click.option(
+    "-q",
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress progress messages on stderr (default: show milestone updates)",
+)
 @click.version_option(__version__, prog_name="gem-transcribe")
 def main(
     input_arg: str,
@@ -155,6 +162,7 @@ def main(
     keep_staging: bool | None,
     config_path: str | None,
     verbose: bool,
+    quiet: bool,
 ) -> None:
     """Transcribe AUDIO (a local path or a gs:// URI) using Vertex AI Gemini."""
     logging.basicConfig(
@@ -189,12 +197,17 @@ def main(
     languages = _parse_csv(lang_csv)
     speaker_hints = _parse_csv(speaker_hint_csv)
 
+    def reporter(msg: str) -> None:
+        if not quiet:
+            click.echo(msg, err=True)
+
     try:
         result = transcribe(
             input_arg,
             config=config,
             languages=languages,
             speaker_hints=speaker_hints,
+            reporter=reporter,
         )
     except FileNotFoundError as exc:
         raise click.FileError(str(exc)) from exc

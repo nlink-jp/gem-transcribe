@@ -4,17 +4,32 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
+from pathlib import Path
 
 from pydantic import ValidationError
 
 from gem_transcribe.config import Config
-from gem_transcribe.gcs.uploader import StagingUploader
+from gem_transcribe.gcs.uploader import StagingUploader, is_gcs_uri
 from gem_transcribe.llm.client import GeminiClient, repair_json
 from gem_transcribe.llm.prompts import build_user_prompt
 from gem_transcribe.models import Metadata, Segment, TranscriptionResult
 
 logger = logging.getLogger(__name__)
+
+Reporter = Callable[[str], None]
+
+
+def _noop_reporter(_: str) -> None:
+    pass
+
+
+def _format_elapsed(seconds: float) -> str:
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes, secs = divmod(int(seconds), 60)
+    return f"{minutes}m{secs:02d}s"
 
 
 def transcribe(
@@ -25,6 +40,7 @@ def transcribe(
     speaker_hints: Sequence[str] | None = None,
     uploader: StagingUploader | None = None,
     client: GeminiClient | None = None,
+    reporter: Reporter = _noop_reporter,
 ) -> TranscriptionResult:
     """Transcribe a single audio source end-to-end.
 
@@ -36,6 +52,9 @@ def transcribe(
         speaker_hints: Optional list of participant names for attribution.
         uploader: Override the default ``StagingUploader`` (for testing).
         client: Override the default ``GeminiClient`` (for testing).
+        reporter: One-line progress sink called at each milestone (upload,
+            transcribe start, transcribe done with elapsed). Defaults to a
+            no-op so library use stays silent; the CLI wires this to stderr.
 
     Returns:
         A validated ``TranscriptionResult``.
@@ -49,9 +68,19 @@ def transcribe(
     client = client or GeminiClient(config)
     user_prompt = build_user_prompt(languages=langs, speaker_hints=hints or None)
 
+    is_local = not is_gcs_uri(input_arg)
+    if is_local:
+        reporter(f"Uploading {Path(input_arg).name} to GCS staging...")
+
     with uploader.staged(input_arg) as gs_uri:
         logger.info("Transcribing %s (model=%s, languages=%s)", gs_uri, config.model, langs)
+        reporter(f"Transcribing with {config.model} (languages={','.join(langs)}); this may take several minutes...")
+        start = time.monotonic()
         raw = client.transcribe(gs_uri, user_prompt)
+        reporter(f"Transcription complete in {_format_elapsed(time.monotonic() - start)}")
+
+    if is_local and not config.keep_staging:
+        reporter("Cleaned up staging object")
 
     repaired = repair_json(raw)
     payload = json.loads(repaired)

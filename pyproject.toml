@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gem-transcribe"
-version = "0.1.0"
+version = "0.2.0"
 description = "Audio transcription CLI built on Vertex AI Gemini — speaker inference, multi-language, structured JSON"
 readme = "README.md"
 requires-python = ">=3.11"

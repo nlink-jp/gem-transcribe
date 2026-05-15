@@ -272,6 +272,66 @@ class TestMain:
         assert (tmp_path / "meeting.ja.vtt").exists()
 
 
+class TestProgressReporter:
+    """Verify the CLI wires a stderr reporter to ``transcribe`` and that
+    ``--quiet`` produces a no-op reporter."""
+
+    def _invoke(
+        self,
+        sample_transcription: TranscriptionResult,
+        audio: Path,
+        extra_args: list[str],
+    ) -> tuple[int, object]:
+        """Run the CLI and return ``(exit_code, transcribe_call_args)``.
+
+        The wired ``reporter`` is exposed via the captured call so each test
+        can exercise it independently.
+        """
+        runner = CliRunner()
+        with patch("gem_transcribe.cli.transcribe", return_value=sample_transcription) as mock_t:
+            result = runner.invoke(
+                main,
+                [str(audio), *extra_args],
+                catch_exceptions=False,
+            )
+            return result.exit_code, mock_t.call_args
+
+    def test_default_reporter_writes_to_stderr(
+        self,
+        sample_transcription: TranscriptionResult,
+        cli_env: None,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        audio = tmp_path / "x.mp3"
+        audio.write_bytes(b"x")
+        code, call_args = self._invoke(sample_transcription, audio, [])
+        assert code == 0
+        # Exercise the wired reporter directly and confirm it lands on stderr.
+        capsys.readouterr()  # drain anything already captured
+        call_args.kwargs["reporter"]("hello progress")
+        captured = capsys.readouterr()
+        assert "hello progress" in captured.err
+        assert "hello progress" not in captured.out
+
+    def test_quiet_reporter_is_silent(
+        self,
+        sample_transcription: TranscriptionResult,
+        cli_env: None,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        audio = tmp_path / "x.mp3"
+        audio.write_bytes(b"x")
+        code, call_args = self._invoke(sample_transcription, audio, ["--quiet"])
+        assert code == 0
+        capsys.readouterr()
+        call_args.kwargs["reporter"]("should not appear")
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert captured.out == ""
+
+
 class TestPerLanguagePaths:
     def test_basic_derivation(self) -> None:
         out = _per_language_paths(Path("/tmp/meeting.srt"), ["en", "ja"], "srt")

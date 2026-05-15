@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-05-16
+
+### Added
+
+- Progress milestones on stderr by default: upload start, transcribe start
+  (with model + languages), and transcribe completion with elapsed time.
+  Suppress with `--quiet`. Long Vertex AI calls no longer appear frozen.
+- README "Known limitations" section documenting Gemini timestamp drift on
+  long audio, including the observation that timestamps can exceed the
+  actual audio duration on both `gemini-2.5-flash` and `gemini-2.5-pro`
+  (verified: 25-min recording produced past-30-min segment timestamps).
+
 ## [0.1.0] - 2026-05-15
 
 ### Added

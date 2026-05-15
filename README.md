@@ -25,6 +25,10 @@ action-item extraction live downstream in tools like
   `--output-file=meeting.srt --lang=en,ja`, the tool writes
   `meeting.en.srt` and `meeting.ja.srt` automatically. `--output-dir` emits
   both `.json` and `.txt` for the same basename
+- **Progress on stderr** — the CLI prints one-line milestones (upload,
+  transcribe start, elapsed time on completion) so long-running calls do
+  not appear frozen. Pass `--quiet` to suppress, or `--verbose` for full
+  INFO-level logs
 
 ## Installation
 
@@ -98,6 +102,37 @@ gem-transcribe meeting.mp3 --format=vtt --output-file=meeting.vtt
 # Pre-uploaded audio in GCS
 gem-transcribe gs://your-bucket/recordings/2026-05-15.mp3
 ```
+
+## Known limitations
+
+### Timestamp accuracy
+
+Segment `start` / `end` values come from Gemini's audio-token estimate, not
+from sample-accurate decoding. Treat them as **rough markers, not sync-grade
+references.** Concretely:
+
+- **Drift accumulates on long audio.** Single-pass transcription of long
+  recordings (roughly 20 minutes and up) drifts noticeably, with errors
+  growing toward the end of the file. Short recordings (a few minutes) are
+  usually within a second or two.
+- **Timestamps can exceed the actual audio duration.** In real-world tests
+  with `gemini-2.5-pro`, a 25-minute recording produced segments tagged past
+  the 30-minute mark. Both `gemini-2.5-flash` and `gemini-2.5-pro` show this
+  behaviour; switching model does **not** reliably fix it.
+- **`end` is occasionally emitted as a duration** instead of an absolute
+  offset (a known Gemini 2.5 quirk). The orchestrator detects and rewrites
+  these cases (`end = start + end`) and logs a warning under `--verbose`.
+
+If you need sample-accurate alignment (e.g. burning subtitles onto video),
+do not consume these timestamps directly. Established workarounds — out of
+scope for this tool and intended for downstream pipelines:
+
+- Measure the audio's true duration locally (`ffprobe`) and clip / rescale
+  segment timestamps against it.
+- Split the audio into shorter chunks before transcription and re-offset
+  each chunk's timestamps. Bounds drift to the chunk length.
+- Use a dedicated forced-alignment pass (e.g. WhisperX) on the produced
+  text against the original audio.
 
 ## Configuration
 

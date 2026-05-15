@@ -10,7 +10,12 @@ import pytest
 
 from gem_transcribe.config import Config
 from gem_transcribe.models import TranscriptionResult
-from gem_transcribe.orchestrator import _build_result, _normalise_timestamps, transcribe
+from gem_transcribe.orchestrator import (
+    _build_result,
+    _format_elapsed,
+    _normalise_timestamps,
+    transcribe,
+)
 
 
 def _model_payload() -> dict:
@@ -131,6 +136,64 @@ class TestTranscribe:
                 uploader=fake_uploader,
                 client=fake_client,
             )
+
+    def test_reporter_called_with_milestones_for_local_file(
+        self, sample_config: Config, fake_uploader: MagicMock, fake_client: MagicMock
+    ) -> None:
+        messages: list[str] = []
+        transcribe(
+            "/local/meeting.mp3",
+            config=sample_config,
+            uploader=fake_uploader,
+            client=fake_client,
+            reporter=messages.append,
+        )
+        # We expect at least: upload-start, transcribe-start, transcribe-done, cleanup.
+        joined = "\n".join(messages)
+        assert "Uploading" in joined
+        assert "meeting.mp3" in joined
+        assert "Transcribing" in joined
+        assert "complete" in joined
+        assert "Cleaned up" in joined
+
+    def test_reporter_skips_upload_message_for_gs_uri(
+        self, sample_config: Config, fake_uploader: MagicMock, fake_client: MagicMock
+    ) -> None:
+        messages: list[str] = []
+        transcribe(
+            "gs://other-bucket/foo.mp3",
+            config=sample_config,
+            uploader=fake_uploader,
+            client=fake_client,
+            reporter=messages.append,
+        )
+        joined = "\n".join(messages)
+        assert "Uploading" not in joined
+        assert "Cleaned up" not in joined
+        assert "Transcribing" in joined
+
+    def test_reporter_defaults_to_noop(
+        self, sample_config: Config, fake_uploader: MagicMock, fake_client: MagicMock
+    ) -> None:
+        # No reporter argument — must not raise and must not crash on output.
+        result = transcribe(
+            "/local/x.mp3",
+            config=sample_config,
+            uploader=fake_uploader,
+            client=fake_client,
+        )
+        assert isinstance(result, TranscriptionResult)
+
+
+class TestFormatElapsed:
+    def test_sub_minute_uses_decimal_seconds(self) -> None:
+        assert _format_elapsed(12.345) == "12.3s"
+
+    def test_minute_plus_uses_mmss(self) -> None:
+        assert _format_elapsed(125.7) == "2m05s"
+
+    def test_zero(self) -> None:
+        assert _format_elapsed(0.0) == "0.0s"
 
 
 class TestNormaliseTimestamps:
